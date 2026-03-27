@@ -87,6 +87,13 @@ class Model:
             if settings.max_memory
             else None
         )
+
+        # NVFP4 does not support CPU/disk offloading — all weights must reside on GPU.
+        # Prevent accelerate from mapping any layers to CPU by giving it zero CPU budget.
+        if settings.quantization == QuantizationMethod.NVFP4:
+            if self.max_memory is None:
+                self.max_memory = {}
+            self.max_memory.setdefault("cpu", "0GiB")
         self.trusted_models = {settings.model: settings.trust_remote_code}
 
         if self.settings.evaluate_model is not None:
