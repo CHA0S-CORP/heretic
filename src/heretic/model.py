@@ -2,6 +2,7 @@
 # Copyright (C) 2025-2026  Philipp Emanuel Weidmann <pew@worldwidemann.com> + contributors
 
 import math
+import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Type, cast
@@ -108,6 +109,7 @@ class Model:
                     dtype=dtype,
                     device_map=settings.device_map,
                     max_memory=self.max_memory,
+                    offload_folder=tempfile.gettempdir(),
                     trust_remote_code=self.trusted_models.get(settings.model),
                     **extra_kwargs,
                 )
@@ -338,6 +340,7 @@ class Model:
             dtype=dtype,
             device_map=self.settings.device_map,
             max_memory=self.max_memory,
+            offload_folder=tempfile.gettempdir(),
             trust_remote_code=self.trusted_models.get(self.settings.model),
             **extra_kwargs,
         )
