@@ -88,12 +88,6 @@ class Model:
             else None
         )
 
-        # NVFP4 does not support CPU/disk offloading — all weights must reside on GPU.
-        # Prevent accelerate from mapping any layers to CPU by giving it zero CPU budget.
-        if settings.quantization == QuantizationMethod.NVFP4:
-            if self.max_memory is None:
-                self.max_memory = {}
-            self.max_memory.setdefault("cpu", "0GiB")
         self.trusted_models = {settings.model: settings.trust_remote_code}
 
         if self.settings.evaluate_model is not None:
@@ -111,14 +105,23 @@ class Model:
                 if quantization_config is not None:
                     extra_kwargs["quantization_config"] = quantization_config
 
-                # NVFP4 requires all weights on GPU — CPU/disk offloading is not supported.
-                if settings.quantization != QuantizationMethod.NVFP4:
+                # NVFP4 does not support CPU/disk offloading — all weights must
+                # reside on GPU. device_map="auto" can map overflow layers to CPU,
+                # which FPQuant rejects. Use {"": 0} to force GPU-only placement.
+                if settings.quantization == QuantizationMethod.NVFP4:
+                    device_map = (
+                        settings.device_map
+                        if settings.device_map != "auto"
+                        else {"": 0}
+                    )
+                else:
+                    device_map = settings.device_map
                     extra_kwargs["offload_folder"] = tempfile.gettempdir()
 
                 self.model = get_model_class(settings.model).from_pretrained(
                     settings.model,
                     dtype=dtype,
-                    device_map=settings.device_map,
+                    device_map=device_map,
                     max_memory=self.max_memory,
                     trust_remote_code=self.trusted_models.get(settings.model),
                     **extra_kwargs,
@@ -346,14 +349,20 @@ class Model:
         if quantization_config is not None:
             extra_kwargs["quantization_config"] = quantization_config
 
-        # NVFP4 requires all weights on GPU — CPU/disk offloading is not supported.
-        if self.settings.quantization != QuantizationMethod.NVFP4:
+        if self.settings.quantization == QuantizationMethod.NVFP4:
+            device_map = (
+                self.settings.device_map
+                if self.settings.device_map != "auto"
+                else {"": 0}
+            )
+        else:
+            device_map = self.settings.device_map
             extra_kwargs["offload_folder"] = tempfile.gettempdir()
 
         self.model = get_model_class(self.settings.model).from_pretrained(
             self.settings.model,
             dtype=dtype,
-            device_map=self.settings.device_map,
+            device_map=device_map,
             max_memory=self.max_memory,
             trust_remote_code=self.trusted_models.get(self.settings.model),
             **extra_kwargs,
