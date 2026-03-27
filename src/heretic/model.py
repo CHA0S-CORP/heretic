@@ -133,6 +133,12 @@ class Model:
                 self.model = None  # ty:ignore[invalid-assignment]
                 empty_cache()
                 print(f"[red]Failed[/] ({error})")
+
+                # For NVFP4, the quantization config is dtype-independent,
+                # so retrying with a different dtype will produce the same error.
+                if self.settings.quantization == QuantizationMethod.NVFP4:
+                    break
+
                 continue
 
             if settings.quantization == QuantizationMethod.BNB_4BIT:
@@ -145,6 +151,13 @@ class Model:
             break
 
         if self.model is None:
+            if self.settings.quantization == QuantizationMethod.NVFP4:
+                raise Exception(
+                    "Failed to load model with NVFP4 quantization. "
+                    "NVFP4 requires a Blackwell GPU and qutlass. "
+                    "Install qutlass: git clone https://github.com/IST-DASLab/qutlass.git "
+                    "&& cd qutlass && pip install --no-build-isolation ."
+                )
             raise Exception("Failed to load model with all configured dtypes.")
 
         self._apply_lora()
