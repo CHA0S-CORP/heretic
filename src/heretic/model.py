@@ -104,12 +104,15 @@ class Model:
                 if quantization_config is not None:
                     extra_kwargs["quantization_config"] = quantization_config
 
+                # NVFP4 requires all weights on GPU — CPU/disk offloading is not supported.
+                if settings.quantization != QuantizationMethod.NVFP4:
+                    extra_kwargs["offload_folder"] = tempfile.gettempdir()
+
                 self.model = get_model_class(settings.model).from_pretrained(
                     settings.model,
                     dtype=dtype,
                     device_map=settings.device_map,
                     max_memory=self.max_memory,
-                    offload_folder=tempfile.gettempdir(),
                     trust_remote_code=self.trusted_models.get(settings.model),
                     **extra_kwargs,
                 )
@@ -156,9 +159,10 @@ class Model:
             if self.settings.quantization == QuantizationMethod.NVFP4:
                 raise Exception(
                     "Failed to load model with NVFP4 quantization. "
-                    "NVFP4 requires a Blackwell GPU and qutlass. "
-                    "Install qutlass: git clone https://github.com/IST-DASLab/qutlass.git "
-                    "&& cd qutlass && pip install --no-build-isolation ."
+                    "NVFP4 requires a Blackwell GPU, fp_quant (pip install fp_quant), "
+                    "and qutlass (git clone https://github.com/IST-DASLab/qutlass.git "
+                    "&& cd qutlass && pip install --no-build-isolation .). "
+                    "The model must also fit entirely in VRAM (no CPU/disk offloading)."
                 )
             raise Exception("Failed to load model with all configured dtypes.")
 
@@ -335,12 +339,15 @@ class Model:
         if quantization_config is not None:
             extra_kwargs["quantization_config"] = quantization_config
 
+        # NVFP4 requires all weights on GPU — CPU/disk offloading is not supported.
+        if self.settings.quantization != QuantizationMethod.NVFP4:
+            extra_kwargs["offload_folder"] = tempfile.gettempdir()
+
         self.model = get_model_class(self.settings.model).from_pretrained(
             self.settings.model,
             dtype=dtype,
             device_map=self.settings.device_map,
             max_memory=self.max_memory,
-            offload_folder=tempfile.gettempdir(),
             trust_remote_code=self.trusted_models.get(self.settings.model),
             **extra_kwargs,
         )
