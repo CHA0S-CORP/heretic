@@ -38,7 +38,7 @@ Six modules in `src/heretic/`, ~3000 lines total:
 
 - **`main.py`** — CLI entry point and optimization orchestrator. Handles hardware detection, batch size tuning, refusal direction computation, Optuna trial loop (bi-objective: minimize refusals + KL divergence), and a post-processing menu (save, upload, chat, benchmark, compare).
 
-- **`model.py`** — `Model` class wrapping transformers. Handles dtype fallback chains, 4-bit quantization via bitsandbytes, LoRA-based abliteration (rank-1 adapters), batched residual extraction, inference, and logprob computation. Supports floating refusal direction indices with linear interpolation and flexible ablation weight kernels.
+- **`model.py`** — `Model` class wrapping transformers. Handles dtype fallback chains, quantization (bitsandbytes NF4 and NVIDIA FP4 via fp_quant), LoRA-based abliteration (rank-1 adapters), batched residual extraction, inference, and logprob computation. Supports floating refusal direction indices with linear interpolation and flexible ablation weight kernels.
 
 - **`config.py`** — Pydantic Settings with layered config: CLI args > env vars (`HERETIC_` prefix) > TOML files. `Settings` is the master config class (~30 parameters). `config.default.toml` has production defaults.
 
@@ -51,6 +51,6 @@ Six modules in `src/heretic/`, ~3000 lines total:
 ## Key Design Patterns
 
 - Abliteration is applied as LoRA adapters (never modifies base weights directly), enabling fast resets by zeroing adapter weights.
-- Model supports quantized inference with dequantization for ablation computation.
+- Model supports quantized inference (bnb_4bit via bitsandbytes, nvfp4 via fp_quant) with dequantization for ablation computation. Quantized models are merged by reloading the base model in full precision on CPU.
 - Optimization state persists via Optuna JournalStorage (JSON), enabling interrupted run resumption.
 - Hardware detection supports CUDA, XPU, NPU, MLU, MPS, and CPU fallback.

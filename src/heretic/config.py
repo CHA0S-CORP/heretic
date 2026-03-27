@@ -17,6 +17,7 @@ from pydantic_settings import (
 class QuantizationMethod(str, Enum):
     NONE = "none"
     BNB_4BIT = "bnb_4bit"
+    NVFP4 = "nvfp4"
 
 
 class RowNormalization(str, Enum):
@@ -108,7 +109,8 @@ class Settings(BaseSettings):
         description=(
             "Quantization method to use when loading the model. Options: "
             '"none" (no quantization), '
-            '"bnb_4bit" (4-bit quantization using bitsandbytes).'
+            '"bnb_4bit" (4-bit quantization using bitsandbytes), '
+            '"nvfp4" (NVIDIA FP4 quantization using fp_quant, requires Blackwell GPU).'
         ),
     )
 

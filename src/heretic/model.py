@@ -20,6 +20,7 @@ from transformers import (
     AutoTokenizer,
     BatchEncoding,
     BitsAndBytesConfig,
+    FPQuantConfig,
     PretrainedConfig,
     PreTrainedModel,
     PreTrainedTokenizerBase,
@@ -135,7 +136,9 @@ class Model:
                 continue
 
             if settings.quantization == QuantizationMethod.BNB_4BIT:
-                print("[green]Ok[/] (quantized to 4-bit precision)")
+                print("[green]Ok[/] (quantized to 4-bit precision via bitsandbytes)")
+            elif settings.quantization == QuantizationMethod.NVFP4:
+                print("[green]Ok[/] (quantized to NVFP4 precision via fp_quant)")
             else:
                 print("[green]Ok[/]")
 
@@ -208,7 +211,9 @@ class Model:
 
         print(f"* LoRA adapters initialized (targets: {', '.join(target_modules)})")
 
-    def _get_quantization_config(self, dtype: str) -> BitsAndBytesConfig | None:
+    def _get_quantization_config(
+        self, dtype: str
+    ) -> BitsAndBytesConfig | FPQuantConfig | None:
         """
         Creates quantization config based on settings.
 
@@ -216,7 +221,7 @@ class Model:
             dtype: The dtype string (e.g., "auto", "bfloat16")
 
         Returns:
-            BitsAndBytesConfig or None
+            BitsAndBytesConfig, FPQuantConfig, or None
         """
         if self.settings.quantization == QuantizationMethod.BNB_4BIT:
             # BitsAndBytesConfig expects a torch.dtype, not a string.
@@ -231,6 +236,8 @@ class Model:
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_use_double_quant=True,
             )
+        elif self.settings.quantization == QuantizationMethod.NVFP4:
+            return FPQuantConfig(forward_dtype="nvfp4")
         return None
 
     def get_merged_model(self) -> PreTrainedModel:
@@ -238,7 +245,10 @@ class Model:
         assert isinstance(self.model, PeftModel)
 
         # Check if we need special handling for quantized models
-        if self.settings.quantization == QuantizationMethod.BNB_4BIT:
+        if self.settings.quantization in (
+            QuantizationMethod.BNB_4BIT,
+            QuantizationMethod.NVFP4,
+        ):
             # Quantized models need special handling - we must reload the base model
             # in full precision to merge the LoRA adapters
 
@@ -474,10 +484,8 @@ class Model:
                     base_weight = cast(Tensor, module.base_layer.weight)
                     quant_state = getattr(base_weight, "quant_state", None)
 
-                    if quant_state is None:
-                        W = base_weight.to(torch.float32)
-                    else:
-                        # 4-bit quantization.
+                    if quant_state is not None:
+                        # bitsandbytes 4-bit quantization.
                         # This cast is always valid. Type inference fails here because the
                         # bnb.functional module is not found by ty for some reason.
                         W = cast(
@@ -487,6 +495,12 @@ class Model:
                                 quant_state,
                             ).to(torch.float32),
                         )
+                    elif self.settings.quantization == QuantizationMethod.NVFP4:
+                        # NVFP4 quantization stores weights in a packed format.
+                        # Use the tensor's dequantize method to recover full-precision weights.
+                        W = base_weight.dequantize().to(torch.float32)
+                    else:
+                        W = base_weight.to(torch.float32)
 
                     # Flatten weight matrix to (out_features, in_features).
                     W = W.view(W.shape[0], -1)

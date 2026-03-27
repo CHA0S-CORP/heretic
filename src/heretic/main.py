@@ -68,7 +68,10 @@ def obtain_merge_strategy(settings: Settings) -> str | None:
     Returns "merge", "adapter", or None (if cancelled/invalid).
     """
 
-    if settings.quantization == QuantizationMethod.BNB_4BIT:
+    if settings.quantization in (
+        QuantizationMethod.BNB_4BIT,
+        QuantizationMethod.NVFP4,
+    ):
         print()
         print(
             "Model was loaded with quantization. Merging requires reloading the base model."
